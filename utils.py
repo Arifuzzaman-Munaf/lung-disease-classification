@@ -4,88 +4,83 @@ from PIL import Image
 import hashlib
 import numpy as np
 import matplotlib.pyplot as plt
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def create_dataframe(path):
+def create_dataframe(path, valid_exts=(".jpg",), max_workers=8):
     """
-    Reads images from subfolders, processes them 
-    and returns a DataFrame with columns ['image', 'label'].
+    returns a DataFrame with ['path', 'label'] only.
 
-    arg
-    path(str): Path to the main directory containing subfolders of images.
+    args:
+    path (str): Root directory containing subfolders (each subfolder is a label).
+
+    valid_exts (tuple): Allowed image extensions.
+
+    max_workers (int): Number of threads for parallel directory scanning.
 
     returns:
-    df: DataFrame with processed PIL Image objects and corresponding labels.
+    pd.DataFrame: DataFrame with 'path' (image file path) and 'label' (class name).
     """
     
-    data = []
-
-    # Loop through each subfolder in the main directory
-    for subfolder_name in os.listdir(path):
-        subfolder_path = os.path.join(path, subfolder_name)
-
-        # Skip if not a directory
-        if not os.path.isdir(subfolder_path):
-            continue
-
-        # Process each image in the subfolder
-        for image_name in os.listdir(subfolder_path):
-            image_path = os.path.join(subfolder_path, image_name)
-
-            try:
-                # Open image, resize to 256x256, and convert to grayscale
-                image = Image.open(image_path).resize((256, 256)).convert('L')
-
-                # Append image and label
-                data.append((image, subfolder_name))
-
-            except Exception as e:
-                print(f"Error loading image {image_path}: {e}")
-
-    # Create DataFrame with 'image' and 'label' columns
-    return pd.DataFrame(data, columns=['image', 'label'])
-
-
-def dataset_overview(df, image_col="image", label_col="label"):
-    """
-    Prints an overview of a dataset containing images and labels without altering the original DataFrame.
-
-    arg:
-    df : pd.DataFrame
-    image_col : str, default="image"
-        Name of the column containing image data.
-    label_col : str, default="label"
-        Name of the column containing label/category data.
-    """
-
-    # --- Helper: convert different image formats to bytes for hashing ---
-    def to_bytes(img):
-        """Convert an image (PIL, NumPy array, or bytes) into raw bytes."""
-        if isinstance(img, bytes):
-            return img
-        if isinstance(img, Image.Image):
-            return img.tobytes()
-        if isinstance(img, np.ndarray):
-            return img.tobytes()
-
-        # Fallback: attempt conversion from array-like to PIL, then to bytes
+    # Collect candidate file paths per class 
+    #parallel I/O scan
+    def _list_files(class_dir):
         try:
-            return Image.fromarray(np.array(img)).tobytes()
+            return [
+                os.path.join(class_dir, f)
+                for f in os.listdir(class_dir)
+                if f.lower().endswith(valid_exts)
+            ]
         except Exception:
-            return str(img).encode("utf-8")  # Last resort: encode as text
+            return []
 
-    # Create a temporary copy for safe summarization
-    tmp = df[[image_col, label_col]].copy()
+    # Get subfolder names (class labels)
+    labels = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    records = []
 
-    # Generate a short MD5 hex digest for each image
-    # to avoids long unreadable bytes
-    tmp["image_id"] = tmp[image_col].apply(lambda im: hashlib.md5(to_bytes(im)).hexdigest())
+    # Parallel scan of each class folder
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_list_files, os.path.join(path, lbl)): lbl for lbl in labels}
+        for fut in as_completed(futures):
+            lbl = futures[fut]
+            for p in fut.result():
+                records.append((p, lbl))
 
-    # Compute dataset statistics
-    num_rows = len(tmp)                          # Total number of rows
-    unique_counts = tmp[["image_id", label_col]].nunique()  # Unique counts per column
-    label_counts = tmp[label_col].value_counts()            # Distribution of labels
-    summary_df = tmp[["image_id", label_col]].describe(include="all")  # Descriptive stats
+    # return the structured dataframe
+    return pd.DataFrame(records, columns=["path", "label"])
+
+
+
+def dataset_overview(df, path_col = "path", label_col = "label"):
+    """
+    Print an overview of a dataset where images are referenced by file paths.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing 'path' and 'label' columns.
+        path_col (str, optional): Column name containing image file paths. Defaults to "path".
+        label_col (str, optional): Column name containing labels. Defaults to "label".
+
+    """
+    # compute MD5 for a file without loading it into memory all at once
+    def file_md5(path: str, chunk_size: int = 1 << 20) -> str:
+        """Return MD5 hex digest for a file, reading in chunks to limit memory use."""
+        md5 = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(chunk_size), b""):
+                md5.update(chunk)
+        return md5.hexdigest()
+
+    # Work on a shallow copy to avoid any accidental mutation
+    tmp = df[[path_col, label_col]].copy()
+
+    # Compute a short, readable fingerprint per image file
+    tmp["image_id"] = tmp[path_col].apply(file_md5)
+
+    # Core stats
+    num_rows = len(tmp)
+    unique_counts = tmp[["image_id", label_col]].nunique()
+    label_counts = tmp[label_col].value_counts()
+    summary_df = tmp[["image_id", label_col]].describe(include="all")
 
     # Display results
     print(f"Number of rows: {num_rows}\n")
@@ -96,29 +91,62 @@ def dataset_overview(df, image_col="image", label_col="label"):
     print("Full DataFrame summary:")
     print(summary_df)
 
-  
-def show_images(df):
-  """
-  Shows one image from each class of the dataframe
 
-  arg:
-  df: the dataframe containig all images
-  """
-  # Get unique labels
-  unique_labels = df['label'].unique()
+def show_images(df, path_col = "path", label_col = "label"):
+    """
+    Display one example image from each class using file paths in the DataFrame.
 
-  # Create a figure and axes for the subplots
-  fig, axes = plt.subplots(1, len(unique_labels), figsize=(20, 5))
+    Args:
+        df (pd.DataFrame): DataFrame containing image paths and labels.
+        path_col (str, optional): Column name containing image file paths. Defaults to "path".
+        label_col (str, optional): Column name containing labels. Defaults to "label".
 
-  # Iterate through unique labels and display one image for each
-  for i, label in enumerate(unique_labels):
-      # Get the first image for the current label
-      image_to_display = df[df['label'] == label]['image'].iloc[0]
+    Notes:
+        - If a class has no readable image (missing/corrupt), it is skipped with a warning.
+        - Uses grayscale colormap for single-channel images; RGB otherwise.
+    """
+    # Collect unique labels (classes)
+    unique_labels = list(df[label_col].unique())
+    if len(unique_labels) == 0:
+        print("No labels found.")
+        return
 
-      # Display the image
-      axes[i].imshow(image_to_display, cmap='gray')
-      axes[i].set_title(label)
-      axes[i].axis('off') # Hide axes
+    # handle the single-class case so axes is always iterable
+    n_classes = len(unique_labels)
+    fig, axes = plt.subplots(1, n_classes, figsize=(5 * n_classes, 5))
+    if n_classes == 1:
+        axes = [axes]  # make it iterable
 
-  plt.tight_layout()
-  plt.show()
+    # Iterate classes and show the first readable image for each class
+    shown = 0
+    for ax, label in zip(axes, unique_labels):
+        subset = df[df[label_col] == label]
+        img_shown = False
+
+        for path in subset[path_col]:
+            try:
+                with Image.open(path) as im:
+                    # Decide how to display: grayscale for 'L' or single-channel
+                    if im.mode == "L":
+                        ax.imshow(im, cmap="gray")
+                    else:
+                        ax.imshow(im)
+                    ax.set_title(str(label))
+                    ax.axis("off")
+                    img_shown = True
+                    shown += 1
+                    break
+            except Exception as e:
+                # If a given file fails, try the next one in the same class
+                print(f"Warning: could not open {path} ({e}). Trying next sample...")
+
+        if not img_shown:
+            ax.set_title(f"{label} (no readable image)")
+            ax.axis("off")
+
+    # If there were more axes than images shown , hide extra axes
+    for ax in axes[shown:]:
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
