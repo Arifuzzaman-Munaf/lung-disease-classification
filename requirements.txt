@@ -1,0 +1,5 @@
+transformers==4.51.1
+wandb==0.19.9
+torchmetrics==0.11.3
+pandas
+numpy
