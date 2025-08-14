@@ -3,6 +3,7 @@ import pandas as pd
 from PIL import Image
 import hashlib
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def create_dataframe(path):
@@ -47,8 +48,7 @@ def create_dataframe(path):
 
 def dataset_overview(df, image_col="image", label_col="label"):
     """
-    Prints an overview of a dataset containing images and labels without 
-    altering the original DataFrame.
+    Prints an overview of a dataset containing images and labels without altering the original DataFrame.
 
     arg:
     df : pd.DataFrame
@@ -95,3 +95,30 @@ def dataset_overview(df, image_col="image", label_col="label"):
     print(label_counts, "\n")
     print("Full DataFrame summary:")
     print(summary_df)
+
+  
+def show_images(df):
+  """
+  Shows one image from each class of the dataframe
+
+  arg:
+  df: the dataframe containig all images
+  """
+  # Get unique labels
+  unique_labels = df['label'].unique()
+
+  # Create a figure and axes for the subplots
+  fig, axes = plt.subplots(1, len(unique_labels), figsize=(20, 5))
+
+  # Iterate through unique labels and display one image for each
+  for i, label in enumerate(unique_labels):
+      # Get the first image for the current label
+      image_to_display = df[df['label'] == label]['image'].iloc[0]
+
+      # Display the image
+      axes[i].imshow(image_to_display, cmap='gray')
+      axes[i].set_title(label)
+      axes[i].axis('off') # Hide axes
+
+  plt.tight_layout()
+  plt.show()
