@@ -1,6 +1,6 @@
 class CFG:
     data_url = "https://www.kaggle.com/api/v1/datasets/download/ghostbat101/lung-x-ray-image-clinical-text-dataset"
-    
+    dataset_path = "/content/dataset/Main dataset"
     img_size      = 256
     batch_size    = 32
     lr            = 3e-4
@@ -21,4 +21,4 @@ class CFG:
 
     def __init__(self, SKELETON_DIR):
       self.SKELETON_DIR   = SKELETON_DIR
-      self.data_dir       = f"{SKELETON_DIR}/dataset"
+      self.data_dir       = "dataset"
