@@ -1,6 +1,6 @@
 class CFG:
-    SKELETON_DIR  = '/content/drive/MyDrive/DLE602'
-    data_dir      = f"{SKELETON_DIR}/data"
+    data_url = "https://www.kaggle.com/api/v1/datasets/download/ghostbat101/lung-x-ray-image-clinical-text-dataset"
+    
     img_size      = 256
     batch_size    = 32
     lr            = 3e-4
@@ -18,3 +18,7 @@ class CFG:
                     "Chest Changes"
                     ]
     use_amp       = True
+
+    def __init__(self, SKELETON_DIR):
+      self.SKELETON_DIR   = SKELETON_DIR
+      self.data_dir       = f"{SKELETON_DIR}/dataset"
