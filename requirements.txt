@@ -1,5 +1,21 @@
-transformers==4.51.1
-wandb==0.19.9
+# Core
+torch
+torchvision
 torchmetrics==0.11.3
+
+# Experiment tracking
+wandb==0.19.9
+
+# Data & utilities
 pandas
 numpy
+tqdm
+
+# Imaging & plotting
+pillow
+matplotlib
+seaborn
+
+
+# If you still use any HF models/utilities elsewhere in the notebook
+transformers==4.51.1
