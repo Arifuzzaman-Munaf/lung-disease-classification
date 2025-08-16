@@ -5,7 +5,7 @@ import hashlib
 import numpy as np
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from sklearn.model_selection import train_test_split
 
 def create_dataframe(path, valid_exts=(".jpg",), max_workers=8):
     """
@@ -150,3 +150,10 @@ def show_images(df, path_col = "path", label_col = "label"):
 
     plt.tight_layout()
     plt.show()
+
+
+def split_dataset(df, test_size=0.2, val_size=0.3):
+    train_val_df, test_df = train_test_split(df, test_size=test_size, stratify=df['label'])
+    train_df, val_df = train_test_split(train_val_df, test_size=val_size, stratify=train_val_df['label'])
+    
+    return train_df, val_df, test_df
