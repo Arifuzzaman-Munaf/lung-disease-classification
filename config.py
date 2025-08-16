@@ -1,11 +1,8 @@
 class CFG:
     data_url = "https://www.kaggle.com/api/v1/datasets/download/ghostbat101/lung-x-ray-image-clinical-text-dataset"
     dataset_path = "/content/dataset/Main dataset"
-    img_size      = 256
-    batch_size    = 32
-    lr            = 3e-4
-    epochs        = 15
-    model_name    = "resnet50"
+    SKELETON_DIR  = '/content/drive/MyDrive/DLE602'
+    img_size      = 224
     num_classes   = 8
     class_names   = [
                     "Degenerative Infectious Diseases",
