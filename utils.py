@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from PIL import Image
 import hashlib
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -157,3 +158,32 @@ def split_dataset(df, test_size=0.2, val_size=0.3):
     train_df, val_df = train_test_split(train_val_df, test_size=val_size, stratify=train_val_df['label'])
     
     return train_df, val_df, test_df
+
+
+
+def create_image_dataframe(df, col="path", width=4):
+    """
+    Create a copy of df where:
+      - 'Merged Data (image+text)' is replaced with 'Main dataset'
+      - image numbers are zero-padded (e.g., image_140 -> image_0140)
+
+    Args:
+        df (pd.DataFrame): input dataframe
+        col (str): column containing file paths
+        width (int): width for zero-padding (default=4)
+
+    Returns:
+        pd.DataFrame: transformed copy of df
+    """
+    def transform_path(path):
+        # Replace folder name
+        path = path.replace("Merged Data (image+text)", "Main dataset")
+        # Zero-pad image numbers
+        path = re.sub(r"(image_)(\d+)",
+                      lambda m: f"{m.group(1)}{int(m.group(2)):0{width}d}",
+                      path)
+        return path
+
+    df_image = df.copy()
+    df_image[col] = df_image[col].apply(transform_path)
+    return df_image
